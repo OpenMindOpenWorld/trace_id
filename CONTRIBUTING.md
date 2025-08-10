@@ -57,7 +57,7 @@ We try to follow the official Rust style guidelines. You can ensure your code is
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/trace_id.git
+   git clone https://github.com/OpenMindOpenWorld/trace_id.git
    cd trace_id
    ```
 
