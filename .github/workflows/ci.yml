@@ -1,42 +1,52 @@
 # GitHub Actions CI workflow for the Rust project
 #
-# This workflow is based on the practices from the supabase-jwt repository.
-# It runs on pushes and pull requests to the main branch, testing the code
-# against stable, beta, and nightly Rust toolchains.
+# This workflow provides comprehensive testing, linting, and quality checks
+# for the trace_id Rust library across multiple platforms and toolchains.
 
-name: Rust CI
+name: CI
 
+# 触发条件：推送到main分支、PR到main分支、手动触发
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test-and-lint:
-    name: Test and Lint
+  # 代码格式检查
+  fmt:
+    name: Format Check
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain: [stable, beta, nightly]
-
     steps:
-      # 1. Checkout the code
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      # 2. Install the Rust toolchain
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.toolchain }}
-          components: [clippy, rustfmt]
+          components: rustfmt
+      
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-      # 3. Cache dependencies to speed up future runs
-      - name: Cache Cargo dependencies
+  # 代码质量检查
+  clippy:
+    name: Clippy Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -45,21 +55,196 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-      # 4. Check formatting
-      - name: Check formatting with rustfmt
-        run: cargo fmt --all -- --check
+  # 默认特征测试（核心功能）
+  test-default:
+    name: Test Default Features
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, beta]
+        exclude:
+          # 减少矩阵大小，只在ubuntu上测试beta版本
+          - os: windows-latest
+            rust: beta
+          - os: macos-latest
+            rust: beta
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-test-default-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run tests (default features)
+        run: cargo test --verbose
+      
+      - name: Run doc tests (default features)
+        run: cargo test --doc
 
-      # 5. Run Clippy for code quality analysis
-      #    -D warnings treats all warnings as errors, enforcing high quality.
-      - name: Lint with Clippy
-        run: cargo clippy --all-features -- -D warnings
+  # Axum 特征测试（集成功能）
+  test-axum:
+    name: Test Axum Integration
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, beta]
+        exclude:
+          # 减少矩阵大小，只在ubuntu上测试beta版本
+          - os: windows-latest
+            rust: beta
+          - os: macos-latest
+            rust: beta
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-test-axum-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run tests (axum feature)
+        run: cargo test --verbose --features axum
+      
+      - name: Run doc tests (axum feature)
+        run: cargo test --doc --features axum
 
-      # 6. Run all tests, including those requiring specific features
-      - name: Run tests
-        run: cargo test --all-features --verbose
+  # 全特征测试（完整功能验证）
+  test-all-features:
+    name: Test All Features
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-test-all-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run tests (all features)
+        run: cargo test --verbose --all-features
+      
+      - name: Run doc tests (all features)
+        run: cargo test --doc --all-features
 
-      # 7. Build benchmarks to ensure they don't break (but don't run them)
-      - name: Build benchmarks
-        run: cargo bench --all-features --no-run
+  # 代码覆盖率
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: [test-default, test-axum, test-all-features]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-tarpaulin
+        uses: taiki-e/install-action@cargo-tarpaulin
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Generate code coverage
+        run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: cobertura.xml
+          fail_ci_if_error: false
+
+  # 安全审计
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+      
+      - name: Run security audit
+        run: cargo audit
+
+  # 基准测试（仅在推送到main分支时运行）
+  bench:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run benchmarks
+        run: cargo bench --all-features
+        continue-on-error: true
