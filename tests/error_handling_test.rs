@@ -64,10 +64,7 @@ fn test_trace_id_validation_edge_cases() {
         if *length == 32 {
             assert!(result.is_some(), "长度为32的有效ID应该被接受: {test_str}");
         } else {
-            assert!(
-                result.is_none(),
-                "长度为{length}的ID应该被拒绝: {test_str}"
-            );
+            assert!(result.is_none(), "长度为{length}的ID应该被拒绝: {test_str}");
         }
     }
 
