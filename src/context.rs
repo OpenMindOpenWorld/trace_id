@@ -52,7 +52,7 @@ mod tests {
     async fn test_get_trace_id_outside_context() {
         // 在没有追踪上下文的情况下调用
         let trace_id1 = get_trace_id();
-        
+
         // 验证返回的是一个有效的TraceId
         assert_eq!(trace_id1.as_str().len(), 32, "ID长度应为32");
         assert!(
@@ -81,7 +81,7 @@ mod tests {
             // 在await之后再次检查
             let current2 = get_trace_id();
             assert_eq!(current2, expected_trace_id, "ID在await之后应保持不变");
-            
+
             "test_result"
         })
         .await;
@@ -107,11 +107,13 @@ mod tests {
             with_trace_id(inner_id.clone(), async {
                 // 验证内层上下文覆盖了外层
                 assert_eq!(get_trace_id(), inner_id, "应处于内层上下文");
-            }).await;
+            })
+            .await;
 
             // 验证退出内层后，恢复到外层上下文
             assert_eq!(get_trace_id(), outer_id, "应恢复到外层上下文");
-        }).await;
+        })
+        .await;
     }
 
     /// 新增测试：验证并发任务之间的上下文隔离
@@ -128,11 +130,12 @@ mod tests {
                 with_trace_id(trace_id_clone, async move {
                     // 随机等待一段时间，增加任务交错执行的可能性
                     tokio::time::sleep(Duration::from_millis(fastrand::u64(1..10))).await;
-                    
+
                     // 验证当前任务的上下文是否正确
                     let current_id = get_trace_id();
                     assert_eq!(current_id, trace_id, "并发任务中的ID应保持隔离和正确");
-                }).await;
+                })
+                .await;
             });
             handles.push(handle);
         }

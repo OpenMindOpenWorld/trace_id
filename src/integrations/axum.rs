@@ -1,9 +1,9 @@
 //! Axum框架的追踪ID中间件
 
-use crate::{TRACE_ID_HEADER, context, trace_id::TraceId};
+use crate::{context, trace_id::TraceId, TRACE_ID_HEADER};
 use axum::{
     extract::{FromRequestParts, Request},
-    http::{HeaderMap, request::Parts},
+    http::{request::Parts, HeaderMap},
     response::Response,
 };
 use std::convert::Infallible;
@@ -47,14 +47,14 @@ pub struct TraceIdLayer {
 impl TraceIdLayer {
     /// 创建新的追踪ID层，使用默认配置和高性能生成器
     pub fn new() -> Self {
-        Self { 
+        Self {
             generator: None,
             config: TraceIdConfig::default(),
         }
     }
-    
+
     /// 创建高性能模式的追踪ID层
-    /// 
+    ///
     /// 禁用 tracing span 以获得最佳性能
     pub fn new_high_performance() -> Self {
         Self {
@@ -65,7 +65,7 @@ impl TraceIdLayer {
             },
         }
     }
-    
+
     /// 使用自定义配置创建追踪ID层
     pub fn with_config(config: TraceIdConfig) -> Self {
         Self {
@@ -150,7 +150,7 @@ where
         let future = self.inner.call(req);
 
         let config = self.config.clone();
-        
+
         Box::pin(async move {
             // 根据配置决定是否创建 span
             if config.enable_span {
@@ -160,21 +160,22 @@ where
                     method = %method,
                     uri = %uri
                 );
-                
+
                 // 在span和task_local上下文中执行请求处理
                 async move {
                     context::with_trace_id(trace_id.clone(), async move {
                         let mut response = future.await?;
-                        
+
                         // 根据配置决定是否添加响应头
                         if config.enable_response_header {
                             if let Ok(header_value) = trace_id.as_str().parse() {
                                 response.headers_mut().insert(TRACE_ID_HEADER, header_value);
                             }
                         }
-                        
+
                         Ok(response)
-                    }).await
+                    })
+                    .await
                 }
                 .instrument(span)
                 .await
@@ -182,16 +183,17 @@ where
                 // 高性能模式：跳过 span 创建
                 context::with_trace_id(trace_id.clone(), async move {
                     let mut response = future.await?;
-                    
+
                     // 根据配置决定是否添加响应头
                     if config.enable_response_header {
                         if let Ok(header_value) = trace_id.as_str().parse() {
                             response.headers_mut().insert(TRACE_ID_HEADER, header_value);
                         }
                     }
-                    
+
                     Ok(response)
-                }).await
+                })
+                .await
             }
         })
     }
@@ -213,7 +215,7 @@ fn extract_or_generate_trace_id(
             }
         }
     }
-    
+
     // 生成新的追踪ID
     if let Some(generator_fn) = generator {
         let generated_id = generator_fn();
@@ -224,11 +226,14 @@ fn extract_or_generate_trace_id(
 }
 
 /// 快速验证追踪ID格式（避免详细检查）
-/// 
+///
 /// 只接受符合 W3C TraceContext 规范的格式，其他格式需要完整验证
 fn is_valid_trace_id_fast(id: &str) -> bool {
     // W3C TraceContext 规范：恰好32个字符的小写十六进制
-    id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+    id.len() == 32
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 
 // -- TraceId Extractor --
@@ -287,10 +292,7 @@ mod tests {
         fn test_extract_trace_id_from_headers() {
             let mut headers = HeaderMap::new();
             let valid_trace_id = "0af7651916cd43dd8448eb211c80319c";
-            headers.insert(
-                TRACE_ID_HEADER,
-                HeaderValue::from_static(valid_trace_id),
-            );
+            headers.insert(TRACE_ID_HEADER, HeaderValue::from_static(valid_trace_id));
 
             let trace_id = extract_or_generate_trace_id(&headers, default_generator());
             assert_eq!(trace_id.as_str(), valid_trace_id);
@@ -342,7 +344,11 @@ mod tests {
     // --- 提取器测试 ---
     #[tokio::test]
     async fn test_trace_id_extractor() {
-        let (mut parts, _body) = Request::builder().uri("/test").body(()).unwrap().into_parts();
+        let (mut parts, _body) = Request::builder()
+            .uri("/test")
+            .body(())
+            .unwrap()
+            .into_parts();
         let test_trace_id = TraceId::new();
 
         crate::context::with_trace_id(test_trace_id.clone(), async move {
@@ -364,7 +370,9 @@ mod tests {
 
         #[tokio::test]
         async fn test_end_to_end_flow() {
-            let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::new());
+            let app = Router::new()
+                .route("/", get(handler))
+                .layer(TraceIdLayer::new());
 
             // 场景1: 提供有效ID
             let valid_id = "0af7651916cd43dd8448eb211c80319c";
@@ -376,22 +384,34 @@ mod tests {
             let response = app.clone().oneshot(request).await.unwrap();
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(response.headers().get(TRACE_ID_HEADER).unwrap(), valid_id);
-            let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
             assert_eq!(&body[..], valid_id.as_bytes());
 
             // 场景2: 不提供ID
             let request = Request::builder().uri("/").body(Body::empty()).unwrap();
             let response = app.clone().oneshot(request).await.unwrap();
             assert_eq!(response.status(), StatusCode::OK);
-            let header_id = response.headers().get(TRACE_ID_HEADER).unwrap().to_str().unwrap().to_owned();
+            let header_id = response
+                .headers()
+                .get(TRACE_ID_HEADER)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned();
             assert_eq!(header_id.len(), 32);
-            let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
             assert_eq!(body, header_id.as_bytes());
         }
 
         #[tokio::test]
         async fn test_high_performance_mode() {
-            let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::new_high_performance());
+            let app = Router::new()
+                .route("/", get(handler))
+                .layer(TraceIdLayer::new_high_performance());
             let valid_id = "1234567890abcdef1234567890abcdef";
             let request = Request::builder()
                 .uri("/")
@@ -409,7 +429,9 @@ mod tests {
                 enable_span: true,
                 enable_response_header: false,
             };
-            let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::with_config(config));
+            let app = Router::new()
+                .route("/", get(handler))
+                .layer(TraceIdLayer::with_config(config));
             let request = Request::builder().uri("/").body(Body::empty()).unwrap();
             let response = app.oneshot(request).await.unwrap();
             assert_eq!(response.status(), StatusCode::OK);
