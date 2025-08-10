@@ -1,0 +1,65 @@
+# GitHub Actions CI aorkflow for the Rust project
+#
+# This workflow is based on the practices from the supabase-jwt repository.
+# It runs on pushes and pull requests to the main branch, testing the code
+# against stable, beta, and nightly Rust toolchains.
+
+name: Rust CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-and-lint:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [stable, beta, nightly]
+
+    steps:
+      # 1. Checkout the code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Install the Rust toolchain
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: [clippy, rustfmt]
+
+      # 3. Cache dependencies to speed up future runs
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # 4. Check formatting
+      - name: Check formatting with rustfmt
+        run: cargo fmt --all -- --check
+
+      # 5. Run Clippy for code quality analysis
+      #    -D warnings treats all warnings as errors, enforcing high quality.
+      - name: Lint with Clippy
+        run: cargo clippy --all-features -- -D warnings
+
+      # 6. Run all tests, including those requiring specific features
+      - name: Run tests
+        run: cargo test --all-features --verbose
+
+      # 7. Build benchmarks to ensure they don't break (but don't run them)
+      - name: Build benchmarks
+        run: cargo bench --all-features --no-run
