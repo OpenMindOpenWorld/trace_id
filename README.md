@@ -5,16 +5,18 @@
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Build Status](https://github.com/OpenMindOpenWorld/trace_id/workflows/CI/badge.svg)](https://github.com/OpenMindOpenWorld/trace_id/actions)
 
-A lightweight, high-performance trace ID library for Rust applications, designed for seamless integration with Axum and the tracing ecosystem.
+A lightweight, high-performance trace ID library for Rust applications, designed for seamless integration with web frameworks and the tracing ecosystem. Currently supports Axum with Actix Web support planned for future releases.
 
 ## 🚀 Features
 
 - **Zero-overhead trace ID generation** - Optimized for high-performance applications
+- **Web framework integration** - Currently supports Axum, with Actix Web planned
 - **Seamless Axum integration** - Drop-in middleware with extractor support
 - **Automatic request correlation** - Links all logs within a request lifecycle
 - **Header-based propagation** - Supports `x-trace-id` header for distributed tracing
 - **Thread-safe context management** - Built on `tokio::task_local!` for async safety
 - **Tracing ecosystem integration** - Automatic span attachment for structured logging
+- **Framework-agnostic core** - Extensible architecture for future framework support
 
 ## 📦 Installation
 
@@ -225,8 +227,8 @@ at your option.
 ## 🔗 Related Projects
 
 - [tracing](https://github.com/tokio-rs/tracing) - Structured logging and diagnostics
-- [axum](https://github.com/tokio-rs/axum) - Ergonomic web framework
-- [uuid](https://github.com/uuid-rs/uuid) - UUID generation and parsing
+- [axum](https://github.com/tokio-rs/axum) - Ergonomic web framework (currently supported)
+- [actix-web](https://github.com/actix/actix-web) - Powerful web framework (planned support)
 
 ---
 
