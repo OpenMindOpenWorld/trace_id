@@ -217,7 +217,7 @@ fn extract_or_generate_trace_id(
     // 生成新的追踪ID
     if let Some(generator_fn) = generator {
         let generated_id = generator_fn();
-        TraceId::from_string_validated(&generated_id).unwrap_or_else(|| TraceId::new())
+        TraceId::from_string_validated(&generated_id).unwrap_or_default()
     } else {
         TraceId::new()
     }

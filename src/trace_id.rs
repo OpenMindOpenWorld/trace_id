@@ -66,10 +66,10 @@ impl TraceId {
         
         // 将各部分组合成128位数据
         let high_64 = ((timestamp & 0xFFFFFFFFFFFF) << 16) | (machine_id as u64);
-        let low_64 = ((counter & 0xFFFFFFFF) as u64) << 32 | (random_part as u64);
+        let low_64 = (counter & 0xFFFFFFFF) << 32 | (random_part as u64);
         
         // 转换为32字符的小写十六进制字符串
-        let id = format!("{:016x}{:016x}", high_64, low_64);
+        let id = format!("{high_64:016x}{low_64:016x}");
         Self(id)
     }
 
