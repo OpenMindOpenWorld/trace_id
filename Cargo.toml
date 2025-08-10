@@ -1,8 +1,21 @@
 [package]
 name = "trace_id"
 version = "0.1.0"
+authors = ["kanata996 <kkanata996@gmail.com>"]
 edition = "2021"
-publish = false
+description = "A lightweight, high-performance tracing ID generation and propagation library for Rust, with out-of-the-box support for Axum."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/OpenMindOpenWorld/trace_id"
+homepage = "https://github.com/OpenMindOpenWorld/trace_id"
+documentation = "https://docs.rs/trace_id"
+keywords = ["trace-id", "tracing", "logging", "observability", "axum"]
+categories = ["web-programming", "api-bindings", "asynchronous"]
+
+# Tell docs.rs to build documentation with all features enabled
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Core dependencies
