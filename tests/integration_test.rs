@@ -4,12 +4,12 @@
 
 use axum::http::Request;
 use axum::{
-    Router,
     http::{Method, StatusCode},
     routing::get,
+    Router,
 };
 use tower::util::ServiceExt;
-use trace_id::{TRACE_ID_HEADER, TraceIdLayer};
+use trace_id::{TraceIdLayer, TRACE_ID_HEADER};
 
 /// 简单的测试处理器
 async fn test_handler() -> &'static str {
