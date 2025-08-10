@@ -1,0 +1,28 @@
+[package]
+name = "trace_id"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.47.1", features = ["rt"] }
+tracing = "0.1"
+fastrand = "2.0"
+
+# Framework integration (optional)
+axum = { version = "0.8.4", optional = true }
+tower = { version = "0.5.2", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.47.1", features = ["macros", "time", "rt-multi-thread"] }
+tracing-subscriber = "0.3"
+criterion = "0.5"
+
+[features]
+default = []
+axum = ["dep:axum", "dep:tower"]
+
+[[bench]]
+name = "core_benchmarks"
+harness = false
