@@ -212,13 +212,13 @@ mod tests {
     #[test]
     fn test_trace_id_display() {
         let trace_id = TraceId::from_string("0af7651916cd43dd8448eb211c80319c");
-        assert_eq!(format!("{}", trace_id), "0af7651916cd43dd8448eb211c80319c");
+        assert_eq!(format!("{trace_id}"), "0af7651916cd43dd8448eb211c80319c");
     }
 
     #[test]
     fn test_trace_id_debug() {
         let trace_id = TraceId::from_string("0af7651916cd43dd8448eb211c80319c");
-        let debug_str = format!("{:?}", trace_id);
+        let debug_str = format!("{trace_id:?}");
         assert!(debug_str.contains("0af7651916cd43dd8448eb211c80319c"));
     }
 

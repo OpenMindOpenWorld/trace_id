@@ -57,12 +57,12 @@ async fn test_concurrent_context_management() {
 
     for i in 0..CONCURRENT_TASKS {
         let handle = tokio::spawn(async move {
-            let expected_id = format!("test-trace-id-{:03}", i);
+            let expected_id = format!("test-trace-id-{i:03}");
             let trace_id = TraceId::from_string_validated(&format!(
                 "{:0<32}",
                 expected_id.chars().take(32).collect::<String>()
             ))
-            .unwrap_or_else(|| TraceId::new());
+            .unwrap_or_default();
 
             let expected_trace_id_str = trace_id.as_str().to_string();
 
@@ -127,13 +127,13 @@ async fn test_high_frequency_validation() {
                 // 验证有效ID
                 for valid_id in &valid_ids_clone {
                     let result = TraceId::from_string_validated(valid_id);
-                    assert!(result.is_some(), "有效ID验证失败: {}", valid_id);
+                    assert!(result.is_some(), "有效ID验证失败: {valid_id}");
                 }
 
                 // 验证无效ID
                 for invalid_id in &invalid_ids_clone {
                     let result = TraceId::from_string_validated(invalid_id);
-                    assert!(result.is_none(), "无效ID验证应该失败: {}", invalid_id);
+                    assert!(result.is_none(), "无效ID验证应该失败: {invalid_id}");
                 }
             }
         });
@@ -170,7 +170,7 @@ async fn test_memory_stability() {
     }
 
     // 如果到达这里没有崩溃，说明内存管理是稳定的
-    assert!(true);
+    // 测试完成
 }
 
 /// 测试极端边界条件

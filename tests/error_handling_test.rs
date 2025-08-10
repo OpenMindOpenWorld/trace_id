@@ -44,7 +44,7 @@ fn test_trace_id_validation_edge_cases() {
 
     for invalid_id in &invalid_chars {
         let result = TraceId::from_string_validated(invalid_id);
-        assert!(result.is_none(), "应该拒绝无效ID: {}", invalid_id);
+        assert!(result.is_none(), "应该拒绝无效ID: {invalid_id}");
     }
 
     // 测试边界长度
@@ -62,13 +62,11 @@ fn test_trace_id_validation_edge_cases() {
     for (length, test_str) in &boundary_lengths {
         let result = TraceId::from_string_validated(test_str);
         if *length == 32 {
-            assert!(result.is_some(), "长度为32的有效ID应该被接受: {}", test_str);
+            assert!(result.is_some(), "长度为32的有效ID应该被接受: {test_str}");
         } else {
             assert!(
                 result.is_none(),
-                "长度为{}的ID应该被拒绝: {}",
-                length,
-                test_str
+                "长度为{length}的ID应该被拒绝: {test_str}"
             );
         }
     }
@@ -81,7 +79,7 @@ fn test_trace_id_validation_edge_cases() {
     // 测试有效的ID
     let valid_id = "0af7651916cd43dd8448eb211c80319c";
     let result = TraceId::from_string_validated(valid_id);
-    assert!(result.is_some(), "有效ID应该被接受: {}", valid_id);
+    assert!(result.is_some(), "有效ID应该被接受: {valid_id}");
 }
 
 /// 测试TraceId的Display和Debug实现
@@ -92,11 +90,11 @@ fn test_trace_id_formatting() {
     let trace_id = TraceId::from_string_validated("0af7651916cd43dd8448eb211c80319c").unwrap();
 
     // 测试Display格式化
-    let display_str = format!("{}", trace_id);
+    let display_str = format!("{trace_id}");
     assert_eq!(display_str, "0af7651916cd43dd8448eb211c80319c");
 
     // 测试Debug格式化
-    let debug_str = format!("{:?}", trace_id);
+    let debug_str = format!("{trace_id:?}");
     assert!(debug_str.contains("0af7651916cd43dd8448eb211c80319c"));
 
     // 测试Default实现
@@ -129,7 +127,7 @@ fn test_trace_id_uniqueness() {
         );
 
         // 验证唯一性
-        assert!(ids.insert(id_str.clone()), "ID应该是唯一的: {}", id_str);
+        assert!(ids.insert(id_str.clone()), "ID应该是唯一的: {id_str}");
     }
 }
 
@@ -143,8 +141,8 @@ fn test_memory_safety() {
         let trace_id = TraceId::new();
         let _cloned = trace_id.clone();
         let _string_repr = trace_id.as_str();
-        let _display = format!("{}", trace_id);
-        let _debug = format!("{:?}", trace_id);
+        let _display = format!("{trace_id}");
+        let _debug = format!("{trace_id:?}");
 
         // 测试验证函数
         let _valid = TraceId::from_string_validated("0af7651916cd43dd8448eb211c80319c");
@@ -152,7 +150,7 @@ fn test_memory_safety() {
     }
 
     // 如果到达这里没有崩溃或内存错误，说明内存管理是安全的
-    assert!(true);
+    // 测试完成
 }
 
 /// 测试TraceId的克隆和相等性
