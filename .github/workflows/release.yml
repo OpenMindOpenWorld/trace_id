@@ -1,64 +1,135 @@
-# GitHub Actions workflow for automating the release process.
-#
-# This workflow is based on the practices from the supabase-jwt repository.
-# It uses `cargo-release` to automate version bumping, tagging, publishing to
-# crates.io, and pushing changes back to the repository.
-#
-# This workflow must be triggered manually from the GitHub Actions UI.
-
 name: Release
 
+# 当推送标签时触发发布流程
 on:
+  push:
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'The version to release (e.g., 0.2.0)'
+        description: 'Version to release (e.g., v0.1.2)'
         required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  release:
-    name: Create Release
+  # 创建GitHub Release
+  create-release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+    outputs:
+      release_url: ${{ steps.create_release.outputs.url }}
+      version: ${{ steps.get_version.outputs.version }}
     steps:
-      # 1. Checkout the code from the repository
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Fetch all history so that cargo-release can determine the next version
           fetch-depth: 0
-
-      # 2. Install the stable Rust toolchain
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      # 3. Install cargo-release, a tool for automating the release process
-      - name: Install cargo-release
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          # Cache cargo-release binary to speed up future runs
-          key: cargo-release-binary
-          
-      - run: cargo install cargo-release
-
-      # 4. Configure Git with user name and email
-      #    This is necessary for cargo-release to create a commit on your behalf.
-      - name: Configure Git
+      
+      - name: Get version
+        id: get_version
         run: |
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-
-      # 5. Run cargo release
-      #    This command will:
-      #    - Bump the version in Cargo.toml to the specified version.
-      #    - Create a new git commit and tag.
-      #    - Publish the crate to crates.io.
-      #    - Push the new commit and tag to the repository.
-      - name: Run cargo release
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 提取当前版本的变更日志
+          VERSION="${{ steps.get_version.outputs.version }}"
+          VERSION_NUMBER=${VERSION#v}
+          
+          # 从CHANGELOG.md中提取当前版本的内容
+          if [ -f CHANGELOG.md ]; then
+            # 使用sed提取版本段落
+            CHANGELOG_CONTENT=$(sed -n "/## \[${VERSION_NUMBER}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2)
+            if [ -z "$CHANGELOG_CONTENT" ]; then
+              CHANGELOG_CONTENT="Release ${VERSION}"
+            fi
+          else
+            CHANGELOG_CONTENT="Release ${VERSION}"
+          fi
+          
+          # 设置输出变量
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          body: ${{ steps.changelog.outputs.content }}
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.version, '-') }}
         env:
-          # The token is required to publish to crates.io
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo release ${{ github.event.inputs.version }} --execute --verbose
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 最终验证
+  build-and-test:
+    name: Final Verification
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+      
+      - name: Run tests
+        run: cargo test --all-features
+      
+      - name: Run security audit
+        run: cargo audit
+
+  # 发布到crates.io
+  publish-crates:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: [create-release, build-and-test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Login to crates.io
+        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
+      
+      - name: Publish to crates.io
+        run: cargo publish
+
+  # 发布后通知
+  post-release:
+    name: Post-release Summary
+    runs-on: ubuntu-latest
+    needs: [create-release, publish-crates, build-and-test]
+    if: always()
+    steps:
+      - name: Release Summary
+        run: |
+          echo "🎉 Release ${{ needs.create-release.outputs.version }} completed!"
+          echo "📦 GitHub Release: ${{ needs.create-release.result }}"
+          echo "✅ Verification: ${{ needs.build-and-test.result }}"
+          echo "🚀 Crates.io: ${{ needs.publish-crates.result }}"
+          
+          if [[ "${{ needs.publish-crates.result }}" == "success" ]]; then
+            echo "✅ View on crates.io: https://crates.io/crates/trace_id"
+          fi
