@@ -269,165 +269,151 @@ mod tests {
     use super::*;
     use axum::{
         body::Body,
-        http::{Request, Response, StatusCode},
+        http::{HeaderValue, Request, StatusCode},
         routing::get,
         Router,
     };
-    use tower::{Service, ServiceExt};
+    use tower::ServiceExt;
 
-    fn default_generator() -> Option<&'static (dyn Fn() -> String + Send + Sync)> {
-        None
+    // --- 辅助函数测试 ---
+    mod id_extraction {
+        use super::*;
+
+        fn default_generator() -> Option<&'static (dyn Fn() -> String + Send + Sync)> {
+            None
+        }
+
+        #[test]
+        fn test_extract_trace_id_from_headers() {
+            let mut headers = HeaderMap::new();
+            let valid_trace_id = "0af7651916cd43dd8448eb211c80319c";
+            headers.insert(
+                TRACE_ID_HEADER,
+                HeaderValue::from_static(valid_trace_id),
+            );
+
+            let trace_id = extract_or_generate_trace_id(&headers, default_generator());
+            assert_eq!(trace_id.as_str(), valid_trace_id);
+        }
+
+        #[test]
+        fn test_generate_trace_id_when_missing() {
+            let headers = HeaderMap::new();
+            let trace_id = extract_or_generate_trace_id(&headers, default_generator());
+            assert_eq!(trace_id.as_str().len(), 32);
+            assert!(TraceId::from_string_validated(trace_id.as_str()).is_some());
+        }
+
+        #[test]
+        fn test_extract_with_invalid_header() {
+            let mut headers = HeaderMap::new();
+            headers.insert(TRACE_ID_HEADER, HeaderValue::from_static(""));
+            let trace_id = extract_or_generate_trace_id(&headers, default_generator());
+            assert_ne!(trace_id.as_str(), "");
+            assert_eq!(trace_id.as_str().len(), 32);
+
+            let mut headers = HeaderMap::new();
+            let long_id = "a".repeat(129);
+            headers.insert(TRACE_ID_HEADER, HeaderValue::from_str(&long_id).unwrap());
+            let trace_id = extract_or_generate_trace_id(&headers, default_generator());
+            assert_ne!(trace_id.as_str(), long_id);
+        }
+
+        #[test]
+        fn test_with_custom_generator() {
+            let headers = HeaderMap::new();
+            let custom_id = "0af7651916cd43dd8448eb211c80319c";
+            let generator = || custom_id.to_string();
+            let trace_id = extract_or_generate_trace_id(&headers, Some(&generator));
+            assert_eq!(trace_id.as_str(), custom_id);
+        }
+
+        #[test]
+        fn test_custom_generator_fallback() {
+            let headers = HeaderMap::new();
+            let invalid_id = "this-is-not-a-valid-id";
+            let generator = || invalid_id.to_string();
+            let trace_id = extract_or_generate_trace_id(&headers, Some(&generator));
+            assert_ne!(trace_id.as_str(), invalid_id);
+            assert_eq!(trace_id.as_str().len(), 32);
+        }
     }
 
-    #[test]
-    fn test_extract_trace_id_from_headers() {
-        let mut headers = HeaderMap::new();
-        let valid_trace_id = "0af7651916cd43dd8448eb211c80319c";
-        headers.insert(
-            TRACE_ID_HEADER,
-            HeaderValue::from_static(valid_trace_id),
-        );
-
-        let trace_id = extract_or_generate_trace_id(&headers, default_generator());
-        assert_eq!(trace_id.as_str(), valid_trace_id);
-    }
-
-    #[test]
-    fn test_generate_trace_id_when_missing() {
-        let headers = HeaderMap::new();
-        let trace_id = extract_or_generate_trace_id(&headers, default_generator());
-        // 断言生成了一个新的、有效的、32个字符的ID
-        assert_eq!(trace_id.as_str().len(), 32);
-        assert!(TraceId::from_string_validated(trace_id.as_str()).is_some());
-    }
-
-    #[test]
-    fn test_extract_with_invalid_header() {
-        // 空的头部值应该生成一个新的ID
-        let mut headers = HeaderMap::new();
-        headers.insert(TRACE_ID_HEADER, HeaderValue::from_static(""));
-        let trace_id = extract_or_generate_trace_id(&headers, default_generator());
-        assert_ne!(trace_id.as_str(), "");
-        assert_eq!(trace_id.as_str().len(), 32);
-        assert!(TraceId::from_string_validated(trace_id.as_str()).is_some());
-
-        // 过长的头部值应该生成一个新的ID
-        let mut headers = HeaderMap::new();
-        let long_id = "a".repeat(129);
-        headers.insert(TRACE_ID_HEADER, HeaderValue::from_str(&long_id).unwrap());
-        let trace_id = extract_or_generate_trace_id(&headers, default_generator());
-        assert_ne!(trace_id.as_str(), long_id);
-        assert_eq!(trace_id.as_str().len(), 32);
-        assert!(TraceId::from_string_validated(trace_id.as_str()).is_some());
-    }
-
-    #[test]
-    fn test_with_custom_generator() {
-        let headers = HeaderMap::new();
-        let custom_id = "0af7651916cd43dd8448eb211c80319c";
-        let generator = || custom_id.to_string();
-        let trace_id = extract_or_generate_trace_id(&headers, Some(&generator));
-        assert_eq!(trace_id.as_str(), custom_id);
-    }
-
-    #[test]
-    fn test_custom_generator_fallback() {
-        let headers = HeaderMap::new();
-        let invalid_id = "this-is-not-a-valid-id";
-        let generator = || invalid_id.to_string();
-        
-        // 当自定义生成器产生无效ID时，应回退到默认生成器
-        let trace_id = extract_or_generate_trace_id(&headers, Some(&generator));
-        
-        assert_ne!(trace_id.as_str(), invalid_id, "不应使用自定义生成器的无效ID");
-        assert_eq!(trace_id.as_str().len(), 32, "应回退到有效的32字符ID");
-        assert!(TraceId::from_string_validated(trace_id.as_str()).is_some(), "回退的ID应该是有效的");
-    }
-
+    // --- 提取器测试 ---
     #[tokio::test]
     async fn test_trace_id_extractor() {
-        // 此测试仍然有效，因为它检查提取器从上下文中获取ID的能力
         let (mut parts, _body) = Request::builder().uri("/test").body(()).unwrap().into_parts();
         let test_trace_id = TraceId::new();
 
         crate::context::with_trace_id(test_trace_id.clone(), async move {
             let extracted_trace_id = TraceId::from_request_parts(&mut parts, &())
                 .await
-                .expect("TraceId提取不应失败");
-
+                .expect("TraceId extraction should never fail");
             assert_eq!(extracted_trace_id, test_trace_id);
         })
         .await;
     }
 
-    // --- 完整的 Layer/Service 测试 ---
+    // --- 中间件/服务测试 ---
+    mod layer_behavior {
+        use super::*;
 
-    /// 一个简单的处理器，提取TraceId并将其在响应体中返回
-    async fn handler(trace_id: TraceId) -> String {
-        trace_id.to_string()
-    }
+        async fn handler(trace_id: TraceId) -> String {
+            trace_id.to_string()
+        }
 
-    #[tokio::test]
-    async fn test_layer_end_to_end_flow() {
-        let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::new());
+        #[tokio::test]
+        async fn test_end_to_end_flow() {
+            let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::new());
 
-        // 场景1: 在请求头中提供一个有效的trace_id
-        let valid_id = "0af7651916cd43dd8448eb211c80319c";
-        let request = Request::builder()
-            .uri("/")
-            .header(TRACE_ID_HEADER, valid_id)
-            .body(Body::empty())
-            .unwrap();
+            // 场景1: 提供有效ID
+            let valid_id = "0af7651916cd43dd8448eb211c80319c";
+            let request = Request::builder()
+                .uri("/")
+                .header(TRACE_ID_HEADER, valid_id)
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers().get(TRACE_ID_HEADER).unwrap(), valid_id);
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            assert_eq!(&body[..], valid_id.as_bytes());
 
-        let response = app.clone().oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers().get(TRACE_ID_HEADER).unwrap(), valid_id, "响应头应与请求头匹配");
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(&body[..], valid_id.as_bytes(), "响应体应包含相同的trace_id");
+            // 场景2: 不提供ID
+            let request = Request::builder().uri("/").body(Body::empty()).unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let header_id = response.headers().get(TRACE_ID_HEADER).unwrap().to_str().unwrap().to_owned();
+            assert_eq!(header_id.len(), 32);
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            assert_eq!(body, header_id.as_bytes());
+        }
 
-        // 场景2: 不提供trace_id头
-        let request = Request::builder().uri("/").body(Body::empty()).unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let header_id = response.headers().get(TRACE_ID_HEADER).unwrap().to_str().unwrap();
-        assert_eq!(header_id.len(), 32, "应生成一个新的32字符ID");
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(&body[..], header_id.as_bytes(), "响应体和头部应包含相同的新ID");
-    }
+        #[tokio::test]
+        async fn test_high_performance_mode() {
+            let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::new_high_performance());
+            let valid_id = "1234567890abcdef1234567890abcdef";
+            let request = Request::builder()
+                .uri("/")
+                .header(TRACE_ID_HEADER, valid_id)
+                .body(Body::empty())
+                .unwrap();
+            let response = app.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers().get(TRACE_ID_HEADER).unwrap(), valid_id);
+        }
 
-    #[tokio::test]
-    async fn test_layer_high_performance_mode() {
-        // 高性能模式仍应设置上下文和响应头，只是不创建tracing span
-        let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::new_high_performance());
-
-        let valid_id = "1234567890abcdef1234567890abcdef";
-        let request = Request::builder()
-            .uri("/")
-            .header(TRACE_ID_HEADER, valid_id)
-            .body(Body::empty())
-            .unwrap();
-
-        let response = app.oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers().get(TRACE_ID_HEADER).unwrap(), valid_id, "在高性能模式下，响应头应存在");
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(&body[..], valid_id.as_bytes(), "在高性能模式下，处理器仍应获取正确的trace_id");
-    }
-
-    #[tokio::test]
-    async fn test_layer_disable_response_header() {
-        let config = TraceIdConfig {
-            enable_span: true,
-            enable_response_header: false, // 显式禁用响应头
-        };
-        let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::with_config(config));
-
-        let request = Request::builder().uri("/").body(Body::empty()).unwrap();
-        let response = app.oneshot(request).await.unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert!(response.headers().get(TRACE_ID_HEADER).is_none(), "响应头应被禁用");
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        assert_eq!(body.len(), 32, "即使响应头被禁用，处理器仍应获取生成的trace_id");
+        #[tokio::test]
+        async fn test_disable_response_header() {
+            let config = TraceIdConfig {
+                enable_span: true,
+                enable_response_header: false,
+            };
+            let app = Router::new().route("/", get(handler)).layer(TraceIdLayer::with_config(config));
+            let request = Request::builder().uri("/").body(Body::empty()).unwrap();
+            let response = app.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert!(response.headers().get(TRACE_ID_HEADER).is_none());
+        }
     }
 }
