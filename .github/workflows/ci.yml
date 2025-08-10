@@ -1,4 +1,4 @@
-# GitHub Actions CI aorkflow for the Rust project
+# GitHub Actions CI workflow for the Rust project
 #
 # This workflow is based on the practices from the supabase-jwt repository.
 # It runs on pushes and pull requests to the main branch, testing the code
