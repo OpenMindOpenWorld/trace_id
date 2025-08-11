@@ -24,10 +24,10 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-trace_id = "0.1"
+trace_id = "0.1.1"
 
 # For Axum integration
-trace_id = { version = "0.1", features = ["axum"] }
+trace_id = { version = "0.1.1", features = ["axum"] }
 ```
 
 ## 🎯 Quick Start
