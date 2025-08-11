@@ -127,6 +127,26 @@ async fn deep_function() {
 
 ## 🔧 Advanced Usage
 
+### Proper Tracing Configuration
+
+To see trace_id in your logs, you must properly configure your tracing subscriber:
+
+```rust
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+
+// Basic configuration
+tracing_subscriber::fmt::init();
+
+// Or more detailed configuration
+tracing_subscriber::registry()
+    .with(fmt::layer())
+    .with(EnvFilter::from_default_env())
+    .init();
+```
+
+Without proper tracing subscriber configuration, the trace_id will not appear in your logs, 
+even though it's correctly propagated through the context.
+
 ### Custom Header Names
 
 ```rust
@@ -168,12 +188,12 @@ match TraceId::from_string_validated("invalid-uuid") {
 
 ## 🚦 Examples
 
-Check out the [examples](examples/) directory for more comprehensive usage patterns:
+Check out the [examples](examples/) directory for comprehensive usage patterns. See [EXAMPLES.md](examples/EXAMPLES.md) for detailed instructions on running and testing the examples.
 
-- [Basic Axum Integration](examples/basic.rs)
-- [Error Handling](examples/error_handling.rs)
-- [Custom Middleware](examples/custom_middleware.rs)
-- [Distributed Tracing](examples/distributed.rs)
+Available examples:
+
+- [tracing_example.rs](examples/tracing_example.rs) - Basic Axum integration with TraceId extractor
+- [tracing_configurations.rs](examples/tracing_configurations.rs) - Different tracing subscriber configurations
 
 ## 🧪 Testing
 
