@@ -6,11 +6,22 @@
 name: CI
 
 # 触发条件：推送到main分支、PR到main分支、手动触发
+# 只有核心代码文件变更时才触发
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 env:
