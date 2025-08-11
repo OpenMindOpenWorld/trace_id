@@ -1,10 +1,10 @@
 [package]
 name = "trace_id"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["kanata996 <kkanata996@gmail.com>"]
 edition = "2021"
 description = "A lightweight, high-performance tracing ID generation and propagation library for Rust, with out-of-the-box support for Axum."
-license = "MIT"
+license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/OpenMindOpenWorld/trace_id"
 homepage = "https://github.com/OpenMindOpenWorld/trace_id"
@@ -28,13 +28,29 @@ axum = { version = "0.8.4", optional = true }
 tower = { version = "0.5.2", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.47.1", features = ["macros", "time", "rt-multi-thread"] }
-tracing-subscriber = "0.3"
+tokio = { version = "1.47.1", features = [
+    "macros",
+    "time",
+    "rt-multi-thread",
+    "net",
+] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 criterion = "0.5"
+axum = "0.8.4"
+tower = "0.5.2"
 
 [features]
 default = []
 axum = ["dep:axum", "dep:tower"]
+
+# Examples configuration - only compile when axum feature is enabled
+[[example]]
+name = "tracing_example"
+required-features = ["axum"]
+
+[[example]]
+name = "tracing_configurations"
+required-features = ["axum"]
 
 [[bench]]
 name = "core_benchmarks"

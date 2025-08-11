@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2024-12-19
+## [0.1.1] - 2025-08-11
+
+### Added
+
+- Enhanced examples with comprehensive usage patterns
+- Improved documentation with better explanations and code samples
+- Added EXAMPLES.md with detailed instructions for running examples
+- New tracing configuration examples showing different setup methods
+
+### Improved
+
+- Better README structure with clearer sections
+- Enhanced code examples with more practical use cases
+- Improved inline documentation and comments
+- Better error handling examples and explanations
+
+## [0.1.0] - 2025-08-10
 
 ### Added
 
@@ -27,4 +43,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HTTP header support (`x-trace-id`)
 - Custom ID generator support
 
+[0.1.1]: https://github.com/OpenMindOpenWorld/trace_id/releases/tag/v0.1.1
 [0.1.0]: https://github.com/OpenMindOpenWorld/trace_id/releases/tag/v0.1.0
