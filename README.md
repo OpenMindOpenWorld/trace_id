@@ -79,7 +79,7 @@ async fn business_logic() {
 
 #### `TraceId`
 
-A lightweight wrapper around a UUID v4 that represents a unique trace identifier.
+A lightweight wrapper around a high-performance trace identifier that represents a unique trace ID compliant with W3C TraceContext specification.
 
 ```rust
 use trace_id::TraceId;
@@ -147,24 +147,23 @@ tracing_subscriber::registry()
 Without proper tracing subscriber configuration, the trace_id will not appear in your logs, 
 even though it's correctly propagated through the context.
 
-### Custom Header Names
+### Custom Header Names (Planned Feature)
 
 ```rust
 use trace_id::TraceIdLayer;
 
-// Use custom header name (future feature)
-let layer = TraceIdLayer::with_header("x-request-id");
+// Use custom header name (planned for future release)
+// let layer = TraceIdLayer::with_header("x-request-id");
 ```
 
 ### Error Handling
 
 ```rust
-use trace_id::{TraceId, TraceIdError};
+use trace_id::TraceId;
 
-match TraceId::from_string_validated("invalid-uuid") {
-    Ok(trace_id) => println!("Valid: {}", trace_id),
-    Err(TraceIdError::InvalidFormat) => println!("Invalid UUID format"),
-    Err(TraceIdError::AllZeros) => println!("UUID cannot be all zeros"),
+match TraceId::from_string_validated("invalid-trace-id") {
+    Some(trace_id) => println!("Valid: {}", trace_id),
+    None => println!("Invalid trace ID format"),
 }
 ```
 
@@ -240,7 +239,7 @@ cargo test --all-features
 This project is licensed under either of
 
 - Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- MIT license ([LICENSE](LICENSE) or http://opensource.org/licenses/MIT)
 
 at your option.
 
