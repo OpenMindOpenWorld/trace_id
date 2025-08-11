@@ -1,6 +1,6 @@
 [package]
 name = "trace_id"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["kanata996 <kkanata996@gmail.com>"]
 edition = "2021"
 description = "A lightweight, high-performance tracing ID generation and propagation library for Rust, with out-of-the-box support for Axum."
